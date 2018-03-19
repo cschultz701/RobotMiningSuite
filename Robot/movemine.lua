@@ -1,10 +1,11 @@
---OpenComputers Standard Move/Mine v0.1
+--OpenComputers Standard Move/Mine v0.2
 --Moves the robot a number of places equal to the provided x, y, and z values provided as arguments.
 --Mines area in front of next position to move to ensure the robot does not get stuck
 
 --Minimum Components:
 --Inventory Controller Upgrade
 --Geolyzer
+--Navigation Upgrade
 
 --Requires Diamond Drill to start in tool slot
 --Requires Fortune Pickaxe to start in Inventory Slot 1
@@ -26,6 +27,10 @@ local sides = require("sides")
 local shell = require("shell")
 
 local movemine={}
+
+local XHOME = -319.5
+local YHOME = 56.5
+local ZHOME = 193.5
 
 function movemine.faceDirection(side)
 	print("Turning to " .. side)
@@ -71,14 +76,20 @@ function movemine.movex(x)
 	end
 	movemine.faceDirection(direction)
 	
+	--determine the location so we can see if we successfully moved the distance we need
+	curx,cury,curz = component.navigation.getPosition()
 	--move to the appropriate X coordinate
 	print("Moving X by " .. x)
 	for i=0, math.abs(x) - 1 do
 		movemine.mineWithTool(direction)
 	end
+	newx,newy,newz = component.navigation.getPosition()
+	return x+curx-newx
 end
 
 function movemine.movey(y)
+	--determine the location so we can see if we successfully moved the distance we need
+	curx,cury,curz = component.navigation.getPosition()
 	--move to the appropriate y coordinate
 	print("Moving Y by " .. y)
 	for i=0, math.abs(y) - 1 do
@@ -88,6 +99,8 @@ function movemine.movey(y)
 			movemine.mineWithTool(sides.negy)
 		end
 	end
+	newx,newy,newz = component.navigation.getPosition()
+	return y+cury-newy
 end
 
 function movemine.movez(z)
@@ -100,13 +113,16 @@ function movemine.movez(z)
 	end
 	movemine.faceDirection(direction)
 	
+	--determine the location so we can see if we successfully moved the distance we need
+	curx,cury,curz = component.navigation.getPosition()
 	--move to the appropriate Z coordinate
 	print("Moving Z by " .. z)
 	for i=0, math.abs(z) - 1 do
 		movemine.mineWithTool(direction)
 	end
+	newx,newy,newz = component.navigation.getPosition()
+	return z+curz-newz
 end
---Main routine
 
 function movemine.go(x, y, z, yfirst, zfirst)
 	--parse arguments
@@ -120,25 +136,82 @@ function movemine.go(x, y, z, yfirst, zfirst)
 	--z = z * (tonumber(arg[6]) - 0.5) * -2
 	print("Moving by " .. x .. ", " .. y .. ", " .. z)
 	
+	remainx = 0
+	remainy = 0
+	remainz = 0
+	
 	--prioritize y being close to home first
 	if(yfirst) then
-		movemine.movey(y)
+		remainy=movemine.movey(y)
 	end
 	
 	--next keep z close to home
 	if(zfirst) then
-		movemine.movez(z)
+		remainz=movemine.movez(z)
+		--try to move any y distance that wasn't successfully moved
+		if(yfirst and remainy ~= 0) then
+			remainy=movemine.movey(remainy)
+		end
 	end
 	
-	movemine.movex(x)
-	
+	remainx=movemine.movex(x)
+	--try to move any y distance that wasn't successfully moved
+	if(yfirst and remainy ~= 0) then
+		remainy=movemine.movey(remainy)
+	end
+	--try to move any z distance that wasn't successfully moved
+	if(zfirst and remainz ~= 0) then
+		remainz=movemine.movez(remainz)
+	end
+
 	if(not zfirst) then
-		movemine.movez(z)
+		remainz=movemine.movez(z)
+		if(yfirst and remainy ~= 0) then
+			remainy=movemine.movey(remainy)
+		end
+		if(remainx ~= 0) then
+			remainx=movemine.movex(remainx)
+		end
 	end
 	
 	if(not yfirst) then
 		movemine.movey(y)
+		if(zfirst and remainz ~= 0) then
+			remainz=movemine.movez(remainz)
+		end
+		if(remainx ~= 0) then
+			remainx=movemine.movex(remainx)
+		end
+		if(not zfirst and remainz ~= 0) then
+			remainz=movemine.movez(remainz)
+		end
 	end
+end
+
+function movemine.moveto(destx, desty, destz)
+	x,y,z = component.navigation.getPosition()
+	local yfirst, zfirst
+	if((y > YHOME and desty < 0) or (y < YHOME and desty > 0)) then
+		yfirst = true
+	else
+		yfirst = false
+	end
+	if((z > ZHOME and destz < 0) or (z < ZHOME and destz > 0)) then
+		zfirst = true
+	else
+		zfirst = false
+	end
+	movemine.go(destx, desty, destz, yfirst, zfirst)
+end
+
+--go back home for whatever reason (low power, done)
+function movemine.returnHome()
+	--prep for going home
+	x,y,z = component.navigation.getPosition()
+	print("Returning home from x=" .. x .. " y=" .. y .. " z=" .. z)
+	
+	movemine.moveto(XHOME-x, YHOME-y, ZHOME-z)
+	return x-math.ceil(XHOME),y-math.ceil(YHOME),z-math.ceil(ZHOME)
 end
 
 return movemine
