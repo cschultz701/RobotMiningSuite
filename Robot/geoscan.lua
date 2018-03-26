@@ -1,10 +1,10 @@
 --OpenComputers Mining v1.0
---geoscan2.lua v1.0
+--geoscan.lua v3.0
 --Scans requested area and generates files based on results
 
 --for use with geoscancontrol.lua v1.0
 --requires SendFile.lua v1.0
---requires movemine.lua v0.1
+--requires movemine.lua v1.0
 
 --Scans an area from the center point of a relative position passed by geoscancontrol.
 --Files are split into groups such that no file exceeds the constant max file size.
@@ -17,18 +17,13 @@
 --running geoscancontrol.
 
 --CONSTANTS========================================
---identifies the home coordinates (use component.navigation.getPosition() to get this)
-local XHOME = -600.5
-local YHOME = 31.5
-local ZHOME = -895.5
-
 --determines the relative limits where the robot stops mining
-local XMIN = -2 ---23
+local XMIN = -23
 local YMIN = -32
-local ZMIN = -2 ---23
-local XMAX = 2 --23
+local ZMIN = -23
+local XMAX = 23
 local YMAX = 32
-local ZMAX = 2 --23
+local ZMAX = 23
 
 --geolyzer always says air = 0
 --anything more than 0 is a block
@@ -36,7 +31,7 @@ local ZMAX = 2 --23
 --Lead = 2 +/- noise
 --All other ores tried = 3 +/- noise
 --Water/Lava = 100 +/- noise
-local VALUEBOUNDARY = 2.8
+local VALUEBOUNDARY = 2.3
 
 --determines what the minimum amount of energy is before going back home
 local MINIMUMPOWER = 5000
@@ -80,6 +75,7 @@ local PORT = 50000
 
 --Minimum Components:
 --Geolyzer
+--See movemine and sendfile for additional components
 
 local computer = require("computer")
 local component = require("component")
@@ -91,9 +87,9 @@ local movemine = require("movemine")
 local senddata = require("SendFile")
 
 --hold the currently scanning coordinates
-local x = 0
-local y = 0
-local z = 0
+local _x = 0
+local _y = 0
+local _z = 0
 
 --specify the enumerations
 local AIR = 0
@@ -103,52 +99,6 @@ local LIQUID = 3
 
 local ConsoleAddress
 local data
-
---encapsulate data into binary
---note: stores in little endian
-local function getdatabytes(x, y, z)
-	x = x + offset
-	xbytes = {}
-	for b = 0,bytelength-1 do
-		xbytes[b] = b32.band(b32.rshift(x, 8 * b),255)
-	end
-	y = y + offset
-	ybytes = {}
-	for b = 0,bytelength-1 do
-		ybytes[b] = b32.band(b32.rshift(y, 8 * b),255)
-	end
-	z = z + offset
-	zbytes = {}
-	for b = 0,bytelength-1 do
-		zbytes[b] = b32.band(b32.rshift(z, 8 * b),255)
-	end
-	return xbytes, ybytes, zbytes
-end
-
---write to the current loot file
---write to a new loot file if the first one is now too big
-local function writebytestofile(xbytes, ybytes, zbytes, totalbytes, filecount, file, filebase)
-	--determine which file ID (could be more than one if too much data)
-	totalbytes = totalbytes + bytelength * 3 --increment the size of the file for the new data
-	--the first iteration will close then reopen the same file, but this makes the
-	--algorithm work easier
-	if math.floor(totalbytes / maxfilesize) > filecount then
-		filecount = math.floor(totalbytes / maxfilesize)
-		file:close()
-		file = assert(io.open(scandirectory .. filebase .. filecount .. lootfiletype, "w"))
-	end
-	--now that we have the correct file to write to, we can write the data
-	for b=0,bytelength-1 do
-		file:write(xbytes[b])
-	end
-	for b=0,bytelength-1 do
-		file:write(ybytes[b])
-	end
-	for b=0,bytelength-1 do
-		file:write(zbytes[b])
-	end
-	return totalbytes, filecount, file
-end
 
 --write to the current loot file
 --write to a new loot file if the first one is now too big
@@ -182,47 +132,13 @@ local function performScan(scanx, scanz)
 	for scany = 1,YMAX-YMIN do
 		columntotal[scany] = columntotal[scany] / avgs
 		if columntotal[scany] < 0.1 then
-			--af:write(string.format(stringformat .. "\n", x+scanx, y+scany+YMIN, z+scanz))
-			xbytes, ybytes, zbytes = getdatabytes(x+scanx, y+scany+YMIN, z+scanz)
-			--abytes, acount, af = writebytestofile(xbytes, ybytes, zbytes, abytes, acount, af, afilebase)
-			abytes, acount, af = writevaluestofile(x+scanx, y+scany+YMIN, z+scanz, abytes, acount, af, afilebase)
+			abytes, acount, af = writevaluestofile(_x+scanx, _y+scany+YMIN-1, _z+scanz, abytes, acount, af, afilebase)
 		elseif columntotal[scany] > VALUEBOUNDARY and columntotal[scany] < 50 then
-			--lf:write(string.format(stringformat .. " %5f" .. "\n", x+scanx, y+scany+YMIN, z+scanz, columntotal[scany]))
-			xbytes, ybytes, zbytes = getdatabytes(x+scanx, y+scany+YMIN, z+scanz)
-			--lbytes, lcount, lf = writebytestofile(xbytes, ybytes, zbytes, lbytes, lcount, lf, lfilebase)
-			lbytes, lcount, lf = writevaluestofile(x+scanx, y+scany+YMIN, z+scanz, lbytes, lcount, lf, lfilebase)
+			lbytes, lcount, lf = writevaluestofile(_x+scanx, _y+scany+YMIN-1, _z+scanz, lbytes, lcount, lf, lfilebase)
 		elseif columntotal[scany] > 50 then
-			--wf:write(string.format(stringformat .. "\n", x+scanx, y+scany+YMIN, z+scanz))
-			xbytes, ybytes, zbytes = getdatabytes(x+scanx, y+scany+YMIN, z+scanz)
-			--wbytes, wcount, wf = writebytestofile(xbytes, ybytes, zbytes, wbytes, wcount, wf, wfilebase)
-			wbytes, wcount, wf = writevaluestofile(x+scanx, y+scany+YMIN, z+scanz, wbytes, wcount, wf, wfilebase)
+			wbytes, wcount, wf = writevaluestofile(_x+scanx, _y+scany+YMIN-1, _z+scanz, wbytes, wcount, wf, wfilebase)
 		end
 	end
-end
-
-local function moveto(destx, desty, destz)
-	x,y,z = component.navigation.getPosition()
-	local yfirst, zfirst
-	if((y > YHOME and desty < 0) or (y < YHOME and desty > 0)) then
-		yfirst = true
-	else
-		yfirst = false
-	end
-	if((z > ZHOME and destz < 0) or (z < ZHOME and destz > 0)) then
-		zfirst = true
-	else
-		zfirst = false
-	end
-	movemine.go(destx, desty, destz, yfirst, zfirst)
-end
-
---go back home for whatever reason (low power, done)
-local function returnHome()
-	--prep for going home
-	x,y,z = component.navigation.getPosition()
-	print("Returning home from x=" .. x .. " y=" .. y .. " z=" .. z)
-	
-	moveto(XHOME-x, YHOME-y, ZHOME-z)
 end
 
 --determine if we should go home
@@ -237,14 +153,15 @@ end
 
 local function performAllScans()
 --loop through all x,z coordinates within the limits and perform a scan on them
-	x,y,z = component.navigation.getPosition()
 	for scanx = XMIN, XMAX do
 		for scanz = ZMIN, ZMAX do
 			if worthGoingHome() then
-				returnHome()
-				return
+				--cf:write(_x+scanx .. "\n" .. _y .. "\n" .. _z+scanz)
+				movemine.returnHome()
+				os.sleep(60)
+				movemine.moveto(destx, desty, destz)
 			end
-			print("Scanning x:" .. scanx .. " z:" .. scanz)
+			--print("Scanning x:" .. scanx .. " z:" .. scanz)
 			performScan(scanx, scanz)
 		end
 	end
@@ -264,19 +181,20 @@ component.modem.send(ConsoleAddress, PORT, "ACK")
 --clear all previous results to ensure we don't have any artifacts from it
 os.execute("rm -r " .. scandirectory)
 os.execute("mkdir " .. scandirectory)
-moveto(destx, desty, destz)
+movemine.moveto(destx, desty, destz)
 --save the location to so we know where the center is
-x,y,z = component.navigation.getPosition()
-cf:write(x .. "\n" .. y .. "\n" .. z)
-cf:close()
+_x,_y,_z = movemine.getPosition()
+cf:write(_x .. "\n" .. _y .. "\n" .. _z)
+--cf:close()
 performAllScans()
-returnHome()
+movemine.returnHome()
 me.turnAround()
+cf:close()
 lf:close()
 af:close()
 wf:close()
 allfiles = {}
-allfilecount = 1
+allfilecount = 1 --this must start at one so sendfilesfromtable works, not sure why
 for a=0,acount do
 	allfiles[allfilecount] = scandirectory .. afilebase .. a .. lootfiletype
 	allfilecount = allfilecount + 1

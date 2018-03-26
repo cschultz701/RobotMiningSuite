@@ -1,4 +1,4 @@
---OpenComputers Standard Move/Mine v0.2
+--OpenComputers Standard Move/Mine v1.0
 --Moves the robot a number of places equal to the provided x, y, and z values provided as arguments.
 --Mines area in front of next position to move to ensure the robot does not get stuck
 
@@ -28,15 +28,29 @@ local shell = require("shell")
 
 local movemine={}
 
-local XHOME = -319.5
-local YHOME = 56.5
-local ZHOME = 193.5
+--identifies the home coordinates (use component.navigation.getPosition() to get this)
+local XHOME = -319
+local YHOME = 56
+local ZHOME = 193
 
 function movemine.faceDirection(side)
 	print("Turning to " .. side)
 	while component.navigation.getFacing() ~= side do
 		me.turnRight()
 	end
+end
+
+function movemine.truncate(val)
+	if val > 0 then
+		return math.floor(val)
+	else
+		return math.ceil(val)
+	end
+end
+
+function movemine.getPosition()
+	x,y,z=component.navigation.getPosition()
+	return movemine.truncate(x),movemine.truncate(y),movemine.truncate(z)
 end
 
 function movemine.mineWithTool(side)
@@ -77,19 +91,19 @@ function movemine.movex(x)
 	movemine.faceDirection(direction)
 	
 	--determine the location so we can see if we successfully moved the distance we need
-	curx,cury,curz = component.navigation.getPosition()
+	curx,cury,curz = movemine.getPosition()
 	--move to the appropriate X coordinate
 	print("Moving X by " .. x)
 	for i=0, math.abs(x) - 1 do
 		movemine.mineWithTool(direction)
 	end
-	newx,newy,newz = component.navigation.getPosition()
+	newx,newy,newz = movemine.getPosition()
 	return x+curx-newx
 end
 
 function movemine.movey(y)
 	--determine the location so we can see if we successfully moved the distance we need
-	curx,cury,curz = component.navigation.getPosition()
+	curx,cury,curz = movemine.getPosition()
 	--move to the appropriate y coordinate
 	print("Moving Y by " .. y)
 	for i=0, math.abs(y) - 1 do
@@ -99,7 +113,7 @@ function movemine.movey(y)
 			movemine.mineWithTool(sides.negy)
 		end
 	end
-	newx,newy,newz = component.navigation.getPosition()
+	newx,newy,newz = movemine.getPosition()
 	return y+cury-newy
 end
 
@@ -114,13 +128,13 @@ function movemine.movez(z)
 	movemine.faceDirection(direction)
 	
 	--determine the location so we can see if we successfully moved the distance we need
-	curx,cury,curz = component.navigation.getPosition()
+	curx,cury,curz = movemine.getPosition()
 	--move to the appropriate Z coordinate
 	print("Moving Z by " .. z)
 	for i=0, math.abs(z) - 1 do
 		movemine.mineWithTool(direction)
 	end
-	newx,newy,newz = component.navigation.getPosition()
+	newx,newy,newz = movemine.getPosition()
 	return z+curz-newz
 end
 
@@ -188,8 +202,8 @@ function movemine.go(x, y, z, yfirst, zfirst)
 	end
 end
 
-function movemine.moveto(destx, desty, destz)
-	x,y,z = component.navigation.getPosition()
+function movemine.moveby(destx, desty, destz)
+	x,y,z = movemine.getPosition()
 	local yfirst, zfirst
 	if((y > YHOME and desty < 0) or (y < YHOME and desty > 0)) then
 		yfirst = true
@@ -204,14 +218,38 @@ function movemine.moveto(destx, desty, destz)
 	movemine.go(destx, desty, destz, yfirst, zfirst)
 end
 
+function movemine.moveto(destx, desty, destz)
+	x,y,z = movemine.getPosition()
+	local yfirst, zfirst
+	if((y > YHOME and desty < y) or (y < YHOME and desty > y)) then
+		yfirst = true
+	else
+		yfirst = false
+	end
+	if((z > ZHOME and destz < z) or (z < ZHOME and destz > z)) then
+		zfirst = true
+	else
+		zfirst = false
+	end
+	attempt = 0
+	while(destx ~= math.ceil(x) or
+	   desty ~= math.ceil(y) or
+	   destz ~= math.ceil(z)) and attempt < 3 do
+		print(math.ceil(x)..","..math.ceil(y)..","..math.ceil(z))
+		movemine.go(destx-math.ceil(x), desty-math.ceil(y), destz-math.ceil(z), yfirst, zfirst)
+		x,y,z = movemine.getPosition()
+		attempt = attempt+1
+	end
+end
+
 --go back home for whatever reason (low power, done)
 function movemine.returnHome()
 	--prep for going home
-	x,y,z = component.navigation.getPosition()
+	x,y,z = movemine.getPosition()
 	print("Returning home from x=" .. x .. " y=" .. y .. " z=" .. z)
 	
-	movemine.moveto(XHOME-x, YHOME-y, ZHOME-z)
-	return x-math.ceil(XHOME),y-math.ceil(YHOME),z-math.ceil(ZHOME)
+	movemine.moveto(XHOME, YHOME, ZHOME)
+	--return x-math.ceil(XHOME),y-math.ceil(YHOME),z-math.ceil(ZHOME)
 end
 
 return movemine

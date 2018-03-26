@@ -2,7 +2,7 @@
 --geoscancontrol.lua v1.0
 --Scans requested area and generates files based on results
 
---for use with geoscan2.lua v1.0
+--for use with geoscan.lua v1.0
 --requires ReceiveFileFile.lua v1.0
 
 --Commands a listening robot to perform a scan at a user defined relative position.

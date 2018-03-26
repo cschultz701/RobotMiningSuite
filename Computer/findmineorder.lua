@@ -210,37 +210,27 @@ while nextcluster ~= 0 do
 	--write the command to move to the cluster start point
 	--remember movemine.lua v0.1 uses relative coordinates only
 	print("Setting up cluster " .. nextcluster .. " of size " .. clustersizes[nextcluster])
-	bytes, fcount, mcf = writevaluestofile(coords[nextcluster][1][1]-coords[currentcluster][1][1],
-										   coords[nextcluster][1][2]-coords[currentcluster][1][2],
-										   coords[nextcluster][1][3]-coords[currentcluster][1][3], 
+	bytes, fcount, mcf = writevaluestofile(coords[nextcluster][1][1],
+										   coords[nextcluster][1][2],
+										   coords[nextcluster][1][3], 
 										   bytes, fcount, mcf, minecommandfilebase)
-	print((coords[nextcluster][1][1]-coords[currentcluster][1][1]).."," ..
-										   (coords[nextcluster][1][2]-coords[currentcluster][1][2])..","..
-										   (coords[nextcluster][1][3]-coords[currentcluster][1][3]))
+	print((coords[nextcluster][1][1]).."," ..
+										   (coords[nextcluster][1][2])..","..
+										   (coords[nextcluster][1][3]))
 	--TODO-command to mine the entire cluster
 	for i=2,clustersizes[nextcluster] do
-		bytes, fcount, mcf = writevaluestofile(coords[nextcluster][i][1]-coords[nextcluster][i-1][1],
-											   coords[nextcluster][i][2]-coords[nextcluster][i-1][2],
-											   coords[nextcluster][i][3]-coords[nextcluster][i-1][3],
+		bytes, fcount, mcf = writevaluestofile(coords[nextcluster][i][1],
+											   coords[nextcluster][i][2],
+											   coords[nextcluster][i][3],
 											   bytes, fcount, mcf, minecommandfilebase)
-		print((coords[nextcluster][i][1]-coords[nextcluster][i-1][1])..","..
-											   (coords[nextcluster][i][2]-coords[nextcluster][i-1][2])..","..
-											   (coords[nextcluster][i][3]-coords[nextcluster][i-1][3]))
+		print((coords[nextcluster][i][1])..","..
+											   (coords[nextcluster][i][2])..","..
+											   (coords[nextcluster][i][3]))
 		round=round+1
 		if round==pacing then
 			os.sleep(1)
 			round=0
 		end
-	end
-	--move back to the start of the cluster so that the next command directs the robot to the correct start of the next cluster
-	if clustersizes[nextcluster] > 1 then
-	bytes, fcount, mcf = writevaluestofile(coords[nextcluster][1][1]-coords[nextcluster][clustersizes[nextcluster]][1],
-										   coords[nextcluster][1][2]-coords[nextcluster][clustersizes[nextcluster]][2],
-										   coords[nextcluster][1][3]-coords[nextcluster][clustersizes[nextcluster]][3],
-										   bytes, fcount, mcf, minecommandfilebase)
-	print((coords[nextcluster][1][1]-coords[nextcluster][clustersizes[nextcluster]][1])..","..
-										   (coords[nextcluster][1][2]-coords[nextcluster][clustersizes[nextcluster]][2])..","..
-										   (coords[nextcluster][1][3]-coords[nextcluster][clustersizes[nextcluster]][3]))
 	end
 	--mark the next cluster as visited
 	covered[nextcluster] = 1
